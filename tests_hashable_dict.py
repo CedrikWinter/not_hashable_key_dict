@@ -1,20 +1,20 @@
 from unittest import skip
 from rest_framework.test import APITestCase
-from .not_hashable_key_dict import NotHashableKeyDict, NotHashableKeyDictException
+from .hashable_dict import HashableDict
 
 
 class HistoryManagerTests(APITestCase):
-    # mcore.data_monitoring.libs.tests_not_hash_dict.HistoryManagerTests
+    # mcore.data_monitoring.libs.tests_not_hashable_key_dict.HistoryManagerTests
 
     def setUp(self) -> None:
 
         # non hashable
-        self.dad = {"name": "dad"}
-        self.mom = {"name": "mom"}
-        self.boy = {"name": "son"}
-        self.girl = {"name": "daughter"}
-        self.president = {"name": "president"}
-        self.first_lady = {"name": "first_lady"}
+        self.dad = HashableDict({"name": "dad"})
+        self.mom = HashableDict({"name": "mom"})
+        self.boy = HashableDict({"name": "son"})
+        self.girl = HashableDict({"name": "daughter"})
+        self.president = HashableDict({"name": "president"})
+        self.first_lady = HashableDict({"name": "first_lady"})
 
         self.dad_age = {"age": 44}
         self.mom_age = {"age": 43}
@@ -23,40 +23,42 @@ class HistoryManagerTests(APITestCase):
         self.president_age = {"age": "old"}
         self.first_lady_age = {"age": "young"}
 
-        self.family = NotHashableKeyDict(
-            (self.dad, {"age": 44}),
-            (self.mom, {"age": 43}),
-            (self.boy, {"age": 12}),
-            (self.girl, {"age": 9}),
-        )
+        self.family = HashableDict({
+            self.dad: {"age": 44},
+            self.mom: {"age": 43},
+            self.boy: {"age": 12},
+            self.girl: {"age": 9},
+        })
 
-    @skip
     def test_init(self):
         # AAA
         # OK car pas de clef non hashable
-        my_dict = NotHashableKeyDict()
+        my_dict = HashableDict()
         real_dict = dict(my_dict)
         self.assertEqual(real_dict, {})
 
         # AAA
         # OK car pas de clef non hashable
-        my_dict = NotHashableKeyDict(("name", "dad"))
+        my_dict = HashableDict({"name": "dad"})
         real_dict = dict(my_dict)  # OK car pas de clef non hashable
         self.assertEqual(real_dict, {"name": "dad"})
 
         # AAA
         # KO car clef non hashable
-        my_dict = NotHashableKeyDict(({"name": "dad"}, "clef non hashable"))
-        self.assertRaises(NotHashableKeyDictException, dict(my_dict))
+        try:
+            HashableDict({{"name": "dad"}: "clef non hashable"})
+
+        except TypeError as e:
+            self.assertTrue("unhashable type: 'dict'" in str(e))
 
     def test_setitem(self):
         # AAA
-        family = NotHashableKeyDict()
+        family = HashableDict()
         family["dad"] = 44
         self.assertEqual(dict(family), {"dad": 44})
 
-        # AAA NotHashableKeyDict is mutable
-        family = NotHashableKeyDict()
+        # AAA HashableDict is mutable
+        family = HashableDict()
         age = {"age": 44}
         new_family = family[self.dad] = age
         self.assertEqual(new_family, age)
@@ -64,7 +66,7 @@ class HistoryManagerTests(APITestCase):
     def test_getitem(self):
         # AAA
         age = 44
-        family = NotHashableKeyDict((self.dad, age))
+        family = HashableDict({self.dad: age})
         self.assertEqual(family[self.dad], age)
 
     def test_len(self):
@@ -94,11 +96,11 @@ class HistoryManagerTests(APITestCase):
         same_family = family.copy()
         self.assertEqual(family.items(), same_family.items())
 
-    def test_has_key(self):
+    def test_in(self):
         # AAA
         family = self.family
-        has_dad = family.has_key(self.dad)
-        not_member = family.has_key(self.president)
+        has_dad = self.dad in family
+        not_member = self.president in family
         self.assertTrue(has_dad)
         self.assertFalse(not_member)
 
@@ -106,26 +108,15 @@ class HistoryManagerTests(APITestCase):
         # AAA
         family = self.family
         new_age = 45
-        family.update((self.dad, new_age))
+        family.update({self.dad: new_age})
         dad_age = family[self.dad]
         self.assertEqual(dad_age, new_age)
 
         # AAA
         family = self.family
-        self.assertRaises(NotHashableKeyDictException, family.update, self.dad, age=45)
-
-    def test_updateKey(self):
-        # AAA
-        family = self.family
-        new_age = {"age": 45}
-        family.updateKey(self.dad, new_age)
-        dad_age = family[self.dad]
-        self.assertEqual(dad_age, new_age)
-
-        # AAA
-        family = self.family
-        self.assertRaises(NotHashableKeyDictException, family.updateKey, self.dad, 45)
-
+        family.update({self.dad: {"age": 36}})
+        # family.update(self.mom={"age": 36})  # SyntaxError
+        pass  # add asserts
 
     @skip
     def test_set(self):
@@ -134,7 +125,7 @@ class HistoryManagerTests(APITestCase):
     def test_keys(self):
         # AAA
         family = self.family
-        members = family.keys()
+        members = list(family.keys())
         self.assertEqual(members, [
             self.dad,
             self.mom,
@@ -145,7 +136,7 @@ class HistoryManagerTests(APITestCase):
     def test_values(self):
         # AAA
         family = self.family
-        ages = family.values()
+        ages = list(family.values())
         self.assertEqual(ages, [
             self.dad_age,
             self.mom_age,
@@ -156,7 +147,7 @@ class HistoryManagerTests(APITestCase):
     def test_items(self):
         # AAA
         family = self.family
-        members_ages= family.items()
+        members_ages= list(family.items())
         self.assertEqual(members_ages, [
             (self.dad, self.dad_age),
             (self.mom, self.mom_age),
@@ -175,8 +166,7 @@ class HistoryManagerTests(APITestCase):
         # AAA no existing key
         family = self.family
         original_length = len(family)
-        president = family.pop(self.president) # not in family :'( !!
-        self.assertEqual(president, None)
+        self.assertRaises(KeyError, family.pop, self.president) # not in family :'( !!
         self.assertEqual(len(family), original_length)
 
         # AAA no existing key
@@ -190,18 +180,18 @@ class HistoryManagerTests(APITestCase):
     def test_get(self):
         # AAA existing key
         family = self.family
-        dad = family.pop(self.dad)
+        dad = family.get(self.dad)
         self.assertEqual(dad, self.dad_age)
 
         # AAA no existing key
         family = self.family
-        president = family.pop(self.president) # not in family :'( !!
+        president = family.get(self.president) # not in family :'( !!
         self.assertEqual(president, None)
 
         # AAA no existing key
         family = self.family
         default_first_lady = "Lady Gaga"
-        first_lady = family.pop(self.first_lady, default_first_lady) # not in family too
+        first_lady = family.get(self.first_lady, default_first_lady) # not in family too
         self.assertEqual(first_lady, default_first_lady)
 
     def test_setdefault(self):
